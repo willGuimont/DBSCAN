@@ -1,62 +1,104 @@
 import numpy as np
-import matplotlib.pyplot as plt
+from itertools import takewhile
 
-# DBSCAN algorithm
-def DBSCAN(points, dist_func, eps, min_pts):
-    # db = [[pt, class], [pt, class], [pt, class], ...]
-    db = [[x, -2] for x in points]  # -2 = undefined
-    c = 0
-    for p_label in db:
-        if p_label[1] != -2:
-            continue
-        neighbors = range_query(db, dist_func, p_label, eps)
-        if len(neighbors) < min_pts:
-            p_label[1] = -1  # noise
-            continue
-        c += 1
-        p_label[1] = c
-        if p_label[0] in neighbors:
-            neighbors.remove(p_label[0])
-        for q_label in neighbors:
-            if q_label[1] == -1:
-                q_label[1] = c
-            elif q_label[1] != -2:
+
+class DBSCAN:
+    """DBCAN clusterer
+    Density-based spatial clustering of applications with noise
+
+    https://en.wikipedia.org/wiki/DBSCAN
+    """
+    UNDEFINED = -2
+    NOISE = -1
+
+    class __ClusterPoint:
+        def __init__(self, point, cluster):
+            self.point = point
+            self.cluster = cluster
+
+    def __init__(self, dist_func, epsilon, min_neighbors):
+        """Create a DBSCAN clusterer
+
+        dist_function -- function that takes two points and returns the distance between them (e.g. euclidean distance)
+        epsilon -- min distance to considere points neighbor
+        min_neighbors -- minimum number of points to consider a bunch of points a cluster
+        """
+        self.dist_func = dist_func
+        self.epsilon = epsilon
+        self.min_neighbors = min_neighbors
+
+    def cluster(self, points):
+        """Split the point per cluster
+
+        points -- Data points
+        return dict {cluster: points}
+        """
+        clustered = self.__dbscan(points)
+        splitted = self.__split_by_cluster(clustered)
+        return splitted
+
+    def __dbscan(self, points):
+        """Perform DBSCAN clustering on points
+
+        points -- Data points
+        returns list of point
+        """
+        point_class_list = [self.__ClusterPoint(
+            x, self.UNDEFINED) for x in points]
+        current_cluster = 0
+
+        for current_point in point_class_list:
+            if current_point.cluster != self.UNDEFINED:
                 continue
-            q_label[1] = c
-            q_neighbors = range_query(db, dist_func, q_label, eps)
-            if len(q_neighbors) >= min_pts:
-                neighbors.extend(q_neighbors)
-    return db
 
+            neighbors = self.__range_query(point_class_list, current_point)
 
-def range_query(db, dist_func, p, eps):
-    out = []
-    for q in db:
-        if dist_func(p[0], q[0]) <= eps:
-            out.append(q)
-    return out
-	
-	
-if __name__ == '__main__':
-	epsilon = 0.5
-	min_pts = 2
-	values = np.array(
-	    [(np.cos(x), np.sin(x)) for x in np.linspace(0, 2 * np.pi, 100)] + 
-        [(2 * np.cos(x), 2 * np.sin(x)) for x in np.linspace(0, 2 * np.pi, 100)] +
-		[(3 * np.cos(x), 3 * np.sin(x)) for x in np.linspace(0, 2 * np.pi, 100)]
-		)
-	db = DBSCAN(values, lambda x, y: (x[0] - y[0]) ** 2 + (x[1] - y[1]) ** 2, epsilon, min_pts)
-	db = np.array(db)
-	# Split by label
-	splitted = []
-	for c in np.unique(db[:, 1]):
-	    splitted.append((c, [x[0] for x in db if x[1] == c]))
-	# Display with different colors
-	for s in splitted:
-		# Don't draw noise
-		if s[0] == -1: 
-			continue
-		a = np.array(s[1])
-		plt.scatter(a[:, 0], a[:, 1])
-	plt.show()
+            if len(neighbors) < self.min_neighbors:
+                current_point.cluster = self.NOISE
+                continue
 
+            current_point.cluster = current_cluster
+            current_cluster += 1
+
+            if current_point in neighbors:
+                neighbors.remove(current_point)
+
+            for q_label in neighbors:
+                if q_label.cluster == self.NOISE:
+                    q_label.cluster = current_cluster
+                elif q_label.cluster != self.UNDEFINED:
+                    continue
+
+                q_label.cluster = current_cluster
+                q_neighbors = self.__range_query(point_class_list, q_label)
+
+                if len(q_neighbors) >= self.min_neighbors:
+                    neighbors.extend(q_neighbors)
+
+        return point_class_list
+
+    def __range_query(self, db, current_point):
+        """Return points in epsilon range
+
+        db -- all points and their class
+        point -- current point
+        """
+        def is_point_in_range(other_point): return self.dist_func(
+            current_point.point, other_point.point) <= self.epsilon
+
+        return list(filter(is_point_in_range, db))
+
+    def __split_by_cluster(self, clustered):
+        """Split the returned points of __dbscan into a dictionnary
+
+        points -- List of __ClusterPoint
+        return {cluster_number: [points]}
+        """
+        splitted = {}
+        for p in clustered:
+            current_cluster = p.cluster
+            if current_cluster not in splitted:
+                splitted[current_cluster] = []
+            splitted[current_cluster].append(p.point)
+
+        return splitted
