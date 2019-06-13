@@ -57,7 +57,6 @@ class DBSCAN:
                 continue
 
             current_point.cluster = current_cluster
-            current_cluster += 1
 
             if current_point in neighbors:
                 neighbors.remove(current_point)
@@ -73,7 +72,8 @@ class DBSCAN:
 
                 if len(q_neighbors) >= self.min_neighbors:
                     neighbors.extend(q_neighbors)
-
+                    
+            current_cluster += 1
         return point_class_list
 
     def __range_query(self, db, current_point):
