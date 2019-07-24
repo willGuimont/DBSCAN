@@ -14,10 +14,10 @@ if __name__ == '__main__':
     )
 
     def euclidean_distance_2d(x, y):
-        return (x[0] - y[0]) ** 2 + (x[1] - y[1]) ** 2
+        return np.sqrt((x[0] - y[0]) ** 2 + (x[1] - y[1])**2)
 
-    clusterer = DBSCAN(euclidean_distance_2d, epsilon, min_pts)
-    clusters = clusterer.cluster(points)
+    dbscan = DBSCAN(euclidean_distance_2d, epsilon, min_pts)
+    clusters = dbscan.cluster(points)
 
     for points in clusters.values():
         pt_cluster = np.array(points)
